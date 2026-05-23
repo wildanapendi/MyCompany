@@ -5,7 +5,8 @@
 # ============================================
 
 # --- Stage 1: Install dependencies & build ---
-FROM node:24-alpine AS build
+# Node.js 24.16.0 LTS (Iron) — alpine3.21 untuk image builder yang ringan
+FROM node:24.16.0-alpine3.21 AS build
 
 WORKDIR /app
 

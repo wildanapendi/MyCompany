@@ -3,6 +3,15 @@
 # ==============================================================================
 # Strategi: Build frontend React (Vite) → salin ke backend → Express serve semua
 # Cocok untuk Railway, Render, Coolify, dan platform lain yang support nixpacks.
+#
+# FIX LOG:
+# - [CRITICAL] Pin Node.js ke 24 LTS (24.16.0) — nodejs_24 di nixpkgs
+#   Vite 7.x membutuhkan >=20.19 atau >=22.12; Node 24 lebih dari cukup.
+# - [CRITICAL] Pisahkan NODE_ENV: build-time pakai "development" agar npm ci
+#   menginstall devDependencies (vite, @vitejs/plugin-react, dll.)
+#   Runtime NODE_ENV=production diatur via environment variable di Coolify UI.
+# - [FIX] Hapus NPM_CONFIG_PRODUCTION dari build vars — tidak diperlukan lagi
+#   karena NODE_ENV=development sudah cukup.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -11,66 +20,72 @@
 providers = ["node"]
 
 [phases.setup]
-# Node.js 22 LTS sebagai runtime utama
-nixPkgs = ["nodejs"]
+# Pin ke Node.js 24 LTS (24.16.0) — nodejs_24 adalah paket nixpkgs untuk
+# major version 24. Nixpacks akan resolve ke patch terbaru dalam major ini.
+nixPkgs = ["nodejs_24"]
 
 # Packages sistem yang dibutuhkan untuk compile native modules (bcrypt)
 aptPkgs = ["python3", "make", "g++"]
 
 # ------------------------------------------------------------------------------
-# Environment variables saat build
+# Environment variables saat BUILD (bukan runtime!)
+# PENTING: NODE_ENV HARUS "development" di sini agar npm ci menginstall
+# devDependencies (vite, @vitejs/plugin-react, tailwindcss, dll.)
+# NODE_ENV=production untuk runtime diatur di Coolify dashboard → Environment Variables
 # ------------------------------------------------------------------------------
 [variables]
-NODE_ENV = "production"
-# Frontend API URL — karena single service, gunakan path relatif
+# JANGAN set NODE_ENV=production di sini! Itu akan skip devDependencies.
+NODE_ENV = "development"
+
+# Frontend API URL — karena single service, gunakan path relatif (/api)
+# Express backend akan menangani routing /api/* dan forward ke handler yang tepat
 VITE_API_URL = "/api"
-# Pastikan npm tidak menjalankan lifecycle scripts yang tidak perlu
-NPM_CONFIG_PRODUCTION = "false"
-# Cegah npm audit (mempercepat install)
+
+# Cegah npm audit dan fund messages untuk mempercepat build
 NPM_CONFIG_AUDIT = "false"
-# Cegah npm fund messages
 NPM_CONFIG_FUND = "false"
 
 # ------------------------------------------------------------------------------
-# Install phase — install dependencies untuk frontend saja
+# Install phase — install dependencies frontend dari root package.json
 # ------------------------------------------------------------------------------
 [phases.install]
 cmds = [
-  # Install frontend dependencies (dari root package.json)
-  # Jangan taruh instalasi backend di sini karena folder belum disalin oleh Nixpacks
+  # Install SEMUA dependencies termasuk devDependencies (vite, dll.)
+  # npm ci otomatis menginstall devDependencies jika NODE_ENV != production
   "npm ci --prefer-offline"
 ]
 
-# Paths yang mempengaruhi cache install (jika file berubah, cache di-invalidate)
+# Cache invalidation: jika file-file ini berubah, layer cache di-rebuild
 paths = ["package.json", "package-lock.json", "backend/package.json", "backend/package-lock.json"]
 
 # ------------------------------------------------------------------------------
-# Build phase — instal backend, build frontend, lalu salin ke backend
+# Build phase — install backend deps, build frontend, salin ke backend/dist
 # ------------------------------------------------------------------------------
 [phases.build]
-# Fase build bergantung pada fase install
+# Fase build bergantung pada fase install selesai lebih dulu
 dependsOn = ["install"]
 
 cmds = [
-  # 1. Pindahkan instalasi backend ke sini (karena semua folder sudah disalin)
+  # 1. Install backend dependencies (folder backend sudah tersedia di sini)
+  #    npm ci di dalam backend/ — karena backend punya package.json sendiri
   "cd backend && npm ci --prefer-offline",
 
-  # 2. Build frontend React dengan Vite → output ke dist/
+  # 2. Build frontend React dengan Vite → output ke /app/dist/
+  #    NODE_ENV=development di atas memastikan semua build tools tersedia
   "npm run build",
 
-  # 3. Salin hasil build ke dalam folder backend/dist
-  # Express akan serve static files dari sini
+  # 3. Salin hasil build frontend ke backend/dist/
+  #    Express server.js akan serve static files dari __dirname/dist
   "cp -r dist backend/dist",
 
-  # 4. Bersihkan node_modules frontend untuk mengurangi ukuran image
-  # "rm -rf node_modules",
-
-  # 5. Bersihkan devDependencies backend yang tidak diperlukan saat runtime
+  # 4. Bersihkan devDependencies backend yang tidak dibutuhkan saat runtime
+  #    Ini mengurangi ukuran final image secara signifikan
   "cd backend && npm prune --production"
 ]
 
 # ------------------------------------------------------------------------------
-# Start phase — jalankan Express server
+# Start phase — jalankan Express server sebagai entry point
+# NODE_ENV=production harus di-set di Coolify dashboard runtime environment!
 # ------------------------------------------------------------------------------
 [start]
 cmd = "cd backend && node server.js"

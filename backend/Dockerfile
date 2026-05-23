@@ -1,11 +1,12 @@
 # backend/Dockerfile
-FROM node:20-alpine AS deps
+# Node.js 24.16.0 LTS (Iron) — alpine3.21 untuk image yang ringan
+FROM node:24.16.0-alpine3.21 AS deps
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-FROM node:20-alpine AS production
+FROM node:24.16.0-alpine3.21 AS production
 LABEL maintainer="YPRN Team"
 
 # Buat user non-root

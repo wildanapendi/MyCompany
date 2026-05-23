@@ -1,6 +1,6 @@
 # ============================================================
 # Docker Compose - Rimba Nusantara Backend
-# Express 4 + PostgreSQL 16
+# Express 4 + PostgreSQL 16 + Node.js 24.16.0 LTS
 # ============================================================
 # Cara pakai:
 #   docker compose up -d              # Jalankan semua service
