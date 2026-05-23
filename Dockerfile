@@ -1,11 +1,11 @@
 # ============================================
 # Multi-stage Dockerfile for React Frontend
-# Stage 1: Build with Node
+# Stage 1: Install dependencies & build
 # Stage 2: Serve with Nginx
 # ============================================
 
 # --- Stage 1: Install dependencies & build ---
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 # --- Stage 2: Serve dengan Nginx ---
-FROM nginx:1.27-alpine AS production
+FROM nginx:1.31.1-alpine AS production
 
 # Label metadata
 LABEL maintainer="YPRN Team"
